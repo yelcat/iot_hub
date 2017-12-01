@@ -1,23 +1,11 @@
-#[macro_use]
-extern crate neon;
-#[macro_use]
-extern crate log;
-extern crate env_logger;
-extern crate coap;
-
 use std::collections::HashMap;
 use std::collections::hash_map::Entry::{Occupied, Vacant};
-use std::sync::mpsc::{channel, Receiver, Sender};
-use std::sync::{Arc, Mutex};
+use std::sync::mpsc::{channel, Sender};
 use std::thread::spawn;
-use std::ops::Deref;
-use std::ops::DerefMut;
 use std::rc::Rc;
 use std::cell::RefCell;
-use std::result::Result;
 
-use std::io::ErrorKind;
-use coap::{CoAPClient, CoAPRequest, IsMessage, MessageType, CoAPOption};
+//use coap::{CoAPClient, CoAPRequest, IsMessage, MessageType, CoAPOption};
 
 use self::TopicNode::*;
 use self::ProcessAction::*;
@@ -44,7 +32,7 @@ impl PartialEq for Subscriber {
     }
 }
 
-enum ProcessAction {
+pub enum ProcessAction {
     Subscribe(String),
     UnSubscribe(String),
     SendMessage(String),
@@ -54,13 +42,13 @@ impl Clone for ProcessAction {
     fn clone(&self) -> Self {
         match self {
             &Subscribe(ref subscriber_id) => {
-                ProcessAction::Subscribe(subscriber_id.clone())
+                Subscribe(subscriber_id.clone())
             }
             &UnSubscribe(ref subscriber_id) => {
-                ProcessAction::UnSubscribe(subscriber_id.clone())
+                UnSubscribe(subscriber_id.clone())
             }
             &SendMessage(ref message) => {
-                ProcessAction::SendMessage(message.clone())
+                SendMessage(message.clone())
             }
         }
     }
@@ -68,12 +56,16 @@ impl Clone for ProcessAction {
 
 type TopicRef = Rc<RefCell<TopicNode>>;
 
-enum TopicNode {
+pub enum TopicNode {
     Root(HashMap<String, TopicRef>),
     Leaf(String, Sender<ProcessAction>, HashMap<String, TopicRef>),
 }
 
 impl TopicNode {
+    pub fn new_root() -> TopicNode {
+        TopicNode::Root(HashMap::new())
+    }
+    
     pub fn new(topic_name: String) -> TopicRef {
         let (sender, receiver) = channel();
 
@@ -116,25 +108,22 @@ impl TopicNode {
 
     pub fn find_topics(&self, topic_pattern: &str) -> Vec<TopicRef> {
         let topic_paths: Vec<_> = topic_pattern.split(SPLITTER).collect();
-        let last_index = topic_paths.len() - 1;
-
         self.find_topics_by_path(topic_paths, 0)
     }
 
-    pub fn process_action(&self, topic_pattern: &str, action: ProcessAction) {
-        match action {
-            Subscribe(_) => {
-                if topic_pattern.contains('*') {
-                    panic!("Invalid topic name, which contains '*'");
-                }
-            }
-            UnSubscribe(_) => {
-                if topic_pattern.contains('*') {
-                    panic!("Invalid topic name, which contains '*'");
-                }
-            }
-            _ => {}
-        }
+    pub fn subscribe(&self, topic_pattern: &str, subscribe_id: &str) {
+        self.process_action(topic_pattern, Subscribe(subscribe_id.to_string()));
+    }
+
+    pub fn unsubscribe(&self, topic_pattern: &str, subscribe_id: &str) {
+        self.process_action(topic_pattern, UnSubscribe(subscribe_id.to_string()));
+    }
+
+    pub fn send(&self, topic_pattern: &str, message: &str) {
+        self.process_action(topic_pattern, SendMessage(message.to_string()));
+    }
+    
+    fn process_action(&self, topic_pattern: &str, action: ProcessAction) {
         match self {
             &Root(_) => {
                 let topic_refs = self.find_topics(topic_pattern);
