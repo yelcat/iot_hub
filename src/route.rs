@@ -7,7 +7,7 @@ use std::cell::RefCell;
 
 //use coap::{CoAPClient, CoAPRequest, IsMessage, MessageType, CoAPOption};
 
-use self::TopicNode::*;
+use self::TopicRoute::*;
 use self::ProcessAction::*;
 
 const SPLITTER: &str = ".";
@@ -54,16 +54,16 @@ impl Clone for ProcessAction {
     }
 }
 
-type TopicRef = Rc<RefCell<TopicNode>>;
+type TopicRef = Rc<RefCell<TopicRoute>>;
 
-pub enum TopicNode {
+pub enum TopicRoute {
     Root(HashMap<String, TopicRef>),
     Leaf(String, Sender<ProcessAction>, HashMap<String, TopicRef>),
 }
 
-impl TopicNode {
-    pub fn new_root() -> TopicNode {
-        TopicNode::Root(HashMap::new())
+impl TopicRoute {
+    pub fn new_root() -> TopicRoute {
+        TopicRoute::Root(HashMap::new())
     }
     
     pub fn new(topic_name: String) -> TopicRef {
@@ -94,7 +94,7 @@ impl TopicNode {
             }
         });
 
-        Rc::new(RefCell::new(TopicNode::Leaf(topic_name, sender, HashMap::new())))
+        Rc::new(RefCell::new(TopicRoute::Leaf(topic_name, sender, HashMap::new())))
     }
 
     pub fn add_topic(&mut self, topic_name: &str) {
@@ -146,10 +146,10 @@ impl TopicNode {
                 match children.entry(path) {
                     Vacant(entry) => {
                         if path_index == last_index {
-                            entry.insert(TopicNode::new(topic_paths.join(SPLITTER)));
+                            entry.insert(TopicRoute::new(topic_paths.join(SPLITTER)));
                         } else {
                             entry
-                                .insert(TopicNode::new(topic_paths.join(SPLITTER)))
+                                .insert(TopicRoute::new(topic_paths.join(SPLITTER)))
                                 .borrow_mut()
                                 .add_topic_by_path(topic_paths, path_index + 1);
                         }
@@ -210,7 +210,7 @@ mod tests {
 
     #[test]
     fn test_topic_nodes() {
-        let mut root = TopicNode::Root(HashMap::new());
+        let mut root = TopicRoute::Root(HashMap::new());
         root.add_topic("floor1.device11.sensor1");
         root.add_topic("floor1.device11.sensor2");
         root.add_topic("floor2.device21.sensor1");
