@@ -6,5 +6,5 @@ extern crate env_logger;
 extern crate futures;
 
 pub mod proto;
-pub mod route;
+pub mod router;
 pub mod server;
